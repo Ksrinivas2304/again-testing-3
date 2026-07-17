@@ -10,14 +10,17 @@ async function request(path, options = {}) {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with status ${response.status}`);
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const data = await response.json();
+      message = data?.detail || data?.message || message;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
   }
 
-  if (response.status === 204) {
-    return null;
-  }
-
+  if (response.status === 204) return null;
   return response.json();
 }
 
@@ -25,17 +28,17 @@ export function fetchTodos() {
   return request('/api/todos');
 }
 
-export function createTodo(title) {
+export function createTodo(text) {
   return request('/api/todos', {
     method: 'POST',
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ text }),
   });
 }
 
-export function updateTodo(id, patch) {
+export function updateTodo(id, todo) {
   return request(`/api/todos/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
+    method: 'PUT',
+    body: JSON.stringify({ text: todo.text, completed: todo.completed }),
   });
 }
 
