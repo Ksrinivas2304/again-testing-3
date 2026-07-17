@@ -1,57 +1,84 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import App from './App';
 
-const todos = [{ id: 1, text: 'Write tests', completed: false }];
+const fetchMock = vi.fn();
 
-vi.mock('./api-client/todos', () => ({
-  fetchTodos: vi.fn(),
-  createTodo: vi.fn(),
-  updateTodo: vi.fn(),
-  deleteTodo: vi.fn(),
-}));
-
-import { createTodo, deleteTodo, fetchTodos, updateTodo } from './api-client/todos';
-
-describe('todo app', () => {
+describe('App', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.stubGlobal('fetch', fetchMock);
+    fetchMock.mockReset();
   });
 
-  it('loads todos from the API', async () => {
-    fetchTodos.mockResolvedValueOnce(todos);
-    render(<App />);
-
-    expect(screen.getByLabelText('Loading todos')).toBeInTheDocument();
-    expect(await screen.findByText('Write tests')).toBeInTheDocument();
-    expect(fetchTodos).toHaveBeenCalledWith();
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it('creates a todo through the API contract', async () => {
-    fetchTodos.mockResolvedValueOnce([]);
-    createTodo.mockResolvedValueOnce({ id: 2, text: 'Ship it', completed: false });
+  it('renders todos and supports create, update, and delete flows', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ([{ id: 1, text: 'First task', completed: false }]),
+    });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ id: 2, text: 'Second task', completed: false }),
+    });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ id: 1, text: 'First task', completed: true }),
+    });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ id: 2, text: 'Second task updated', completed: false }),
+    });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ ok: true }),
+    });
+
     render(<App />);
 
-    await screen.findByText('No todos yet. Add your first task to get started.');
-    fireEvent.change(screen.getByLabelText('Todo text'), { target: { value: 'Ship it' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add todo' }));
+    expect(await screen.findByText('First task')).toBeInTheDocument();
 
-    await screen.findByText('Ship it');
-    expect(createTodo).toHaveBeenCalledWith('Ship it');
+    await userEvent.type(screen.getByLabelText('New todo'), 'Second task');
+    await userEvent.click(screen.getByRole('button', { name: /add/i }));
+    expect(await screen.findByText('Second task')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /mark todo as complete/i }));
+    await waitFor(() => expect(screen.getByText('First task')).toHaveClass('completed'));
+
+    await userEvent.click(screen.getAllByRole('button', { name: /edit/i })[0]);
+    const editInput = screen.getByLabelText('Edit todo text');
+    await userEvent.clear(editInput);
+    await userEvent.type(editInput, 'Second task updated');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Second task updated')).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole('button', { name: /delete/i })[0]);
+    await waitFor(() => expect(screen.queryByText('First task')).not.toBeInTheDocument());
   });
 
-  it('updates completion via PUT and deletes via DELETE', async () => {
-    fetchTodos.mockResolvedValueOnce(todos);
-    updateTodo.mockResolvedValueOnce({ id: 1, text: 'Write tests', completed: true });
-    deleteTodo.mockResolvedValueOnce({ success: true });
+  it('shows an error state when loading fails', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ detail: 'boom' }),
+    });
+
     render(<App />);
 
-    await screen.findByText('Write tests');
-    fireEvent.click(screen.getByLabelText('Mark Write tests as complete'));
-
-    await waitFor(() => expect(updateTodo).toHaveBeenCalledWith(1, { text: 'Write tests', completed: true }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-
-    await waitFor(() => expect(deleteTodo).toHaveBeenCalledWith(1));
+    expect(await screen.findByRole('alert')).toHaveTextContent('boom');
   });
 });

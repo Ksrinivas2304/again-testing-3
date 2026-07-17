@@ -1,125 +1,204 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Check, Circle, Loader2, Plus, PencilLine, Trash2, RefreshCcw } from 'lucide-react';
 import { createTodo, deleteTodo, fetchTodos, updateTodo } from './api-client/todos';
 
-export default function App() {
+function TodoSkeleton() {
+  return (
+    <div className="todo-card animate-pulse">
+      <div className="h-4 w-32 rounded bg-slate-200" />
+      <div className="mt-3 h-3 w-full rounded bg-slate-200" />
+      <div className="mt-2 h-3 w-5/6 rounded bg-slate-200" />
+    </div>
+  );
+}
+
+function App() {
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [text, setText] = useState('');
-  const [savingId, setSavingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [activeId, setActiveId] = useState(null);
+  const [updatingId, setUpdatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [draftText, setDraftText] = useState('');
+
+  const completedCount = useMemo(() => todos.filter((todo) => todo.completed).length, [todos]);
+
+  async function loadTodos() {
+    setLoading(true);
+    setError('');
+    try {
+      const items = await fetchTodos();
+      setTodos(Array.isArray(items) ? items : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load todos');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let active = true;
-    fetchTodos()
-      .then((data) => {
-        if (!active) return;
-        setTodos(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
-        if (!active) return;
-        setError('Unable to load todos. Please try again.');
-      })
-      .finally(() => {
-        if (!active) return;
-        setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    void loadTodos();
   }, []);
 
-  const remainingCount = useMemo(() => todos.filter((todo) => !todo.completed).length, [todos]);
-
-  async function handleSubmit(event) {
+  async function handleCreate(event) {
     event.preventDefault();
-    if (!text.trim()) return;
-    const created = await createTodo(text.trim());
-    setTodos((current) => [created, ...current]);
-    setText('');
+    const value = text.trim();
+    if (!value) return;
+
+    setSaving(true);
+    setError('');
+    try {
+      const created = await createTodo(value);
+      setTodos((current) => [created, ...current]);
+      setText('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create todo');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleToggle(todo) {
-    setSavingId(todo.id);
-    const updated = await updateTodo(todo.id, { text: todo.text, completed: !todo.completed });
-    setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
-    setSavingId(null);
+    setUpdatingId(todo.id);
+    setError('');
+    try {
+      const updated = await updateTodo(todo.id, { completed: !todo.completed });
+      setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update todo');
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function handleSaveEdit(todo) {
+    const nextText = draftText.trim();
+    if (!nextText) return;
+
+    setActiveId(todo.id);
+    setError('');
+    try {
+      const updated = await updateTodo(todo.id, { text: nextText });
+      setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
+      setEditingId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update todo');
+    } finally {
+      setActiveId(null);
+    }
   }
 
   async function handleDelete(todoId) {
-    setSavingId(todoId);
-    await deleteTodo(todoId);
-    setTodos((current) => current.filter((item) => item.id !== todoId));
-    setSavingId(null);
+    setDeletingId(todoId);
+    setError('');
+    try {
+      await deleteTodo(todoId);
+      setTodos((current) => current.filter((item) => item.id !== todoId));
+      if (editingId === todoId) setEditingId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete todo');
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8">
-        <header className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">Todo stack</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Stay on top of your work</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Create, complete, and remove tasks with a clean contract-driven interface.</p>
-        </header>
-
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-xl shadow-slate-950/30">
-          <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
-            <label className="sr-only" htmlFor="todo-text">Todo text</label>
-            <input
-              id="todo-text"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Add a new todo"
-              className="flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/40"
-            />
-            <button className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 focus:ring-2 focus:ring-cyan-300" type="submit">Add todo</button>
-          </form>
-          <div className="mt-4 flex items-center justify-between text-sm text-slate-400">
-            <span>{remainingCount} active</span>
-            <span>{todos.length} total</span>
+    <main className="app-shell">
+      <section className="hero-card">
+        <div className="hero-copy">
+          <p className="eyebrow">TodoFlow</p>
+          <h1>Ship your to-do list with a clean CRUD workflow.</h1>
+          <p className="hero-text">Track tasks, edit items inline, and keep everything synced with the FastAPI backend.</p>
+          <div className="stats-row">
+            <div>
+              <span className="stat-value">{todos.length}</span>
+              <span className="stat-label">Total</span>
+            </div>
+            <div>
+              <span className="stat-value">{completedCount}</span>
+              <span className="stat-label">Completed</span>
+            </div>
           </div>
-        </section>
+        </div>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-xl shadow-slate-950/30">
-          {loading ? (
-            <div className="space-y-3" aria-label="Loading todos">
-              <div className="h-16 animate-pulse rounded-2xl bg-white/5" />
-              <div className="h-16 animate-pulse rounded-2xl bg-white/5" />
-              <div className="h-16 animate-pulse rounded-2xl bg-white/5" />
-            </div>
-          ) : error ? (
-            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
-              {error}
-            </div>
-          ) : todos.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-300">No todos yet. Add your first task to get started.</p>
-          ) : (
-            <ul className="space-y-3">
-              {todos.map((todo) => (
-                <li key={todo.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-400/30">
-                  <input
-                    type="checkbox"
-                    checked={todo.completed}
-                    onChange={() => handleToggle(todo)}
-                    disabled={savingId === todo.id}
-                    aria-label={`Mark ${todo.text} as ${todo.completed ? 'incomplete' : 'complete'}`}
-                    className="h-4 w-4 rounded border-white/30 bg-slate-950 text-cyan-500 focus:ring-cyan-500"
-                  />
-                  <span className={`flex-1 text-sm ${todo.completed ? 'text-slate-500 line-through' : 'text-slate-100'}`}>{todo.text}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(todo.id)}
-                    disabled={savingId === todo.id}
-                    className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:border-rose-400/40 hover:text-rose-200 focus:ring-2 focus:ring-rose-400/40"
-                  >
-                    Delete
+        <form className="todo-form" onSubmit={handleCreate}>
+          <label htmlFor="todo-text">New todo</label>
+          <div className="form-row">
+            <input id="todo-text" value={text} onChange={(event) => setText(event.target.value)} placeholder="Add a task" />
+            <button type="submit" disabled={saving || !text.trim()} aria-disabled={saving || !text.trim()}>
+              {saving ? <Loader2 className="icon spin" /> : <Plus className="icon" />} Add
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section className="list-card">
+        <div className="list-header">
+          <div>
+            <h2>Todos</h2>
+            <p>Use the controls below to update or remove items.</p>
+          </div>
+          <button type="button" className="ghost-button" onClick={loadTodos}>
+            <RefreshCcw className="icon" /> Refresh
+          </button>
+        </div>
+
+        {error ? <div className="error-banner" role="alert">{error}</div> : null}
+
+        {loading ? (
+          <div className="skeleton-grid" aria-label="Loading todos">
+            <TodoSkeleton />
+            <TodoSkeleton />
+            <TodoSkeleton />
+          </div>
+        ) : todos.length === 0 ? (
+          <div className="empty-state">
+            <p>No todos yet.</p>
+            <span>Create your first todo above to get started.</span>
+          </div>
+        ) : (
+          <ul className="todo-list">
+            {todos.map((todo) => {
+              const isEditing = editingId === todo.id;
+              return (
+                <li key={todo.id} className="todo-card">
+                  <button type="button" className="toggle-button" onClick={() => handleToggle(todo)} disabled={updatingId === todo.id} aria-label={todo.completed ? 'Mark todo as incomplete' : 'Mark todo as complete'}>
+                    {todo.completed ? <Check className="icon success" /> : <Circle className="icon" />}
                   </button>
+
+                  <div className="todo-body">
+                    {isEditing ? (
+                      <input className="edit-input" value={draftText} onChange={(event) => setDraftText(event.target.value)} aria-label="Edit todo text" />
+                    ) : (
+                      <p className={todo.completed ? 'completed' : ''}>{todo.text}</p>
+                    )}
+                  </div>
+
+                  <div className="todo-actions">
+                    {isEditing ? (
+                      <button type="button" className="primary-button" onClick={() => handleSaveEdit(todo)} disabled={activeId === todo.id || !draftText.trim()}>
+                        Save
+                      </button>
+                    ) : (
+                      <button type="button" className="secondary-button" onClick={() => { setEditingId(todo.id); setDraftText(todo.text); }}>
+                        <PencilLine className="icon" /> Edit
+                      </button>
+                    )}
+                    <button type="button" className="danger-button" onClick={() => handleDelete(todo.id)} disabled={deletingId === todo.id}>
+                      {deletingId === todo.id ? <Loader2 className="icon spin" /> : <Trash2 className="icon" />} Delete
+                    </button>
+                  </div>
                 </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }
+
+export default App;

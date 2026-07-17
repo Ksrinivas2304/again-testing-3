@@ -9,15 +9,16 @@ async function request(path, options = {}) {
     ...options,
   });
 
+  const contentType = response.headers.get('content-type') || '';
+  const hasJson = contentType.includes('application/json');
+  const data = hasJson ? await response.json() : null;
+
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    const message = data && typeof data === 'object' && 'detail' in data ? String(data.detail) : `Request failed with status ${response.status}`;
+    throw new Error(message);
   }
 
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
+  return data;
 }
 
 export function fetchTodos() {
@@ -33,7 +34,7 @@ export function createTodo(text) {
 
 export function updateTodo(id, payload) {
   return request(`/api/todos/${id}`, {
-    method: 'PUT',
+    method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }
