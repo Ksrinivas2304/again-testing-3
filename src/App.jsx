@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Circle, Loader2, Plus, PencilLine, RefreshCcw, Trash2 } from 'lucide-react';
+import { Check, Circle, Loader2, PencilLine, Plus, RefreshCcw, Trash2 } from 'lucide-react';
 import { createTodo, deleteTodo, fetchTodos, updateTodo } from './api-client/todos';
 
 function TodoSkeleton() {
@@ -73,17 +73,20 @@ export default function App() {
     }
   }
 
-  async function handleSaveEdit(todo) {
-    const value = draftText.trim();
-    if (!value) return;
+  async function handleSave(todo) {
+    const nextText = draftText.trim();
+    if (!nextText) return;
 
+    setUpdatingId(todo.id);
     setError('');
     try {
-      const updated = await updateTodo(todo.id, { text: value });
+      const updated = await updateTodo(todo.id, { text: nextText });
       setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
       setEditingId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update todo');
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -109,8 +112,14 @@ export default function App() {
           <h1>Ship your to-do list with a clean CRUD workflow.</h1>
           <p className="hero-text">Track tasks, edit items inline, and keep everything synced with the FastAPI backend.</p>
           <div className="stats-row">
-            <div><span className="stat-value">{todos.length}</span><span className="stat-label">Total</span></div>
-            <div><span className="stat-value">{completedCount}</span><span className="stat-label">Completed</span></div>
+            <div>
+              <span className="stat-value">{todos.length}</span>
+              <span className="stat-label">Total</span>
+            </div>
+            <div>
+              <span className="stat-value">{completedCount}</span>
+              <span className="stat-label">Completed</span>
+            </div>
           </div>
         </div>
 
@@ -131,7 +140,9 @@ export default function App() {
             <h2>Todos</h2>
             <p>Use the controls below to update or remove items.</p>
           </div>
-          <button type="button" className="ghost-button" onClick={loadTodos}><RefreshCcw className="icon" /> Refresh</button>
+          <button type="button" className="ghost-button" onClick={loadTodos}>
+            <RefreshCcw className="icon" /> Refresh
+          </button>
         </div>
 
         {error ? <div className="error-banner" role="alert">{error}</div> : null}
@@ -167,9 +178,13 @@ export default function App() {
 
                   <div className="todo-actions">
                     {isEditing ? (
-                      <button type="button" className="primary-button" onClick={() => handleSaveEdit(todo)} disabled={!draftText.trim()}>Save</button>
+                      <button type="button" className="primary-button" onClick={() => handleSave(todo)} disabled={updatingId === todo.id || !draftText.trim()}>
+                        Save
+                      </button>
                     ) : (
-                      <button type="button" className="secondary-button" onClick={() => { setEditingId(todo.id); setDraftText(todo.text); }}><PencilLine className="icon" /> Edit</button>
+                      <button type="button" className="secondary-button" onClick={() => { setEditingId(todo.id); setDraftText(todo.text); }}>
+                        <PencilLine className="icon" /> Edit
+                      </button>
                     )}
                     <button type="button" className="danger-button" onClick={() => handleDelete(todo.id)} disabled={deletingId === todo.id}>
                       {deletingId === todo.id ? <Loader2 className="icon spin" /> : <Trash2 className="icon" />} Delete

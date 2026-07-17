@@ -13,11 +13,8 @@ async function request(path, options = {}) {
   const data = contentType.includes('application/json') ? await response.json() : null;
 
   if (!response.ok) {
-    throw new Error(
-      data && typeof data === 'object' && 'detail' in data
-        ? String(data.detail)
-        : `Request failed with status ${response.status}`,
-    );
+    const message = data && typeof data === 'object' && 'detail' in data ? String(data.detail) : `Request failed with status ${response.status}`;
+    throw new Error(message);
   }
 
   return data;

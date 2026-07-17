@@ -21,7 +21,6 @@ button { border: 0; }
   max-width: 1120px;
   margin: 0 auto;
 }
-
 .hero-card, .list-card {
   background: rgba(15, 23, 42, 0.75);
   border: 1px solid rgba(148, 163, 184, 0.18);
@@ -43,34 +42,12 @@ button { border: 0; }
 .stats-row { display: flex; gap: 16px; margin-top: 24px; }
 .stats-row > div { padding: 14px 16px; border-radius: 18px; background: rgba(30, 41, 59, 0.85); min-width: 120px; }
 .stat-value { display: block; color: #f8fafc; font-size: 1.6rem; font-weight: 700; }
-.todo-form {
-  align-self: end;
-  padding: 20px;
-  border-radius: 20px;
-  background: rgba(30, 41, 59, 0.75);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-}
+.todo-form { align-self: end; padding: 20px; border-radius: 20px; background: rgba(30, 41, 59, 0.75); border: 1px solid rgba(148, 163, 184, 0.16); }
 .todo-form label { display: block; margin-bottom: 10px; color: #cbd5e1; font-weight: 600; }
 .form-row { display: flex; gap: 12px; }
-input {
-  width: 100%;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(15, 23, 42, 0.95);
-  color: #f8fafc;
-  padding: 14px 16px;
-}
+input { width: 100%; border-radius: 14px; border: 1px solid rgba(148, 163, 184, 0.24); background: rgba(15, 23, 42, 0.95); color: #f8fafc; padding: 14px 16px; }
 input:focus, button:focus { outline: 2px solid #38bdf8; outline-offset: 2px; }
-button {
-  border-radius: 14px;
-  padding: 12px 16px;
-  cursor: pointer;
-  transition: transform 150ms ease, opacity 150ms ease, background-color 150ms ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
+button { border-radius: 14px; padding: 12px 16px; cursor: pointer; transition: transform 150ms ease, opacity 150ms ease, background-color 150ms ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 button:hover { transform: translateY(-1px); }
 button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .primary-button, .todo-form button { background: linear-gradient(135deg, #14b8a6, #06b6d4); color: white; }
@@ -80,16 +57,7 @@ button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 .list-header { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 20px; }
 .error-banner, .empty-state { padding: 16px; border-radius: 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.18); }
 .todo-list, .skeleton-grid { display: grid; gap: 14px; }
-.todo-card {
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 16px;
-  align-items: center;
-}
+.todo-card { padding: 16px; border-radius: 18px; background: rgba(15, 23, 42, 0.72); border: 1px solid rgba(148, 163, 184, 0.14); display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; }
 .todo-body p { margin: 0; color: #f8fafc; }
 .completed { text-decoration: line-through; color: #94a3b8; }
 .toggle-button { width: 44px; height: 44px; border-radius: 999px; background: rgba(51, 65, 85, 0.9); color: #e2e8f0; }
