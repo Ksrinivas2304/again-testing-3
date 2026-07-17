@@ -1,27 +1,31 @@
+# API CONTRACT
+# GET /api/todos
+#   response: [
+#     {"id": int, "text": str, "completed": bool}, ...
+#   ]
+# POST /api/todos
+#   request: {"text": str}
+#   response: 201 {"id": int, "text": str, "completed": bool}
+# PUT /api/todos/{id}
+#   request: {"text": str, "completed": bool}
+#   response: {"id": int, "text": str, "completed": bool}
+# DELETE /api/todos/{id}
+#   response: 204 no body
+
 from contextlib import asynccontextmanager
 import os
 from typing import Generator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ConfigDict, model_validator
-from sqlalchemy import Boolean, Integer, String, create_engine, select
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import Boolean, Integer, String, create_engine
+from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-# API CONTRACT
-# GET  /api/todos
-#   response: [{"id": int, "title": str, "completed": bool}]
-# POST /api/todos
-#   request: {"title": str}
-#   response: {"id": int, "title": str, "completed": bool}
-# PATCH /api/todos/{id}
-#   request: {"title": str | omitted, "completed": bool | omitted}
-#   response: {"id": int, "title": str, "completed": bool}
-# DELETE /api/todos/{id}
-#   response: 204 No Content
-
-engine = create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./todos.db")
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 class Base(DeclarativeBase):
@@ -31,41 +35,26 @@ class Base(DeclarativeBase):
 class Todo(Base):
     __tablename__ = "todos"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    text: Mapped[str] = mapped_column(String(500), nullable=False)
     completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class TodoCreate(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+
+
+class TodoUpdate(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    completed: bool
 
 
 class TodoOut(BaseModel):
     id: int
-    title: str
+    text: str
     completed: bool
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class TodoCreate(BaseModel):
-    title: str
-
-    @model_validator(mode="after")
-    def validate_title(self) -> "TodoCreate":
-        if not self.title.strip():
-            raise ValueError("title must not be blank or whitespace only")
-        self.title = self.title.strip()
-        return self
-
-
-class TodoPatch(BaseModel):
-    title: str | None = None
-    completed: bool | None = None
-
-    @model_validator(mode="after")
-    def validate_title(self) -> "TodoPatch":
-        if self.title is not None and not self.title.strip():
-            raise ValueError("title must not be blank or whitespace only")
-        if self.title is not None:
-            self.title = self.title.strip()
-        return self
 
 
 @asynccontextmanager
@@ -84,36 +73,48 @@ app.add_middleware(
 )
 
 
+def get_db() -> Generator[Session, None, None]:
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @app.get("/api/todos", response_model=list[TodoOut])
 async def list_todos() -> list[TodoOut]:
     with SessionLocal() as db:
-        return list(db.scalars(select(Todo).order_by(Todo.id)).all())
+        todos = db.query(Todo).order_by(Todo.id.asc()).all()
+        return todos
 
 
 @app.post("/api/todos", response_model=TodoOut, status_code=201)
 async def create_todo(body: TodoCreate) -> TodoOut:
     with SessionLocal() as db:
-        todo = Todo(title=body.title, completed=False)
+        todo = Todo(text=body.text.strip(), completed=False)
         db.add(todo)
-        db.commit()
-        db.refresh(todo)
+        try:
+            db.commit()
+            db.refresh(todo)
+        except IntegrityError as exc:
+            db.rollback()
+            raise ValueError("failed to create todo") from exc
         return todo
 
 
-@app.patch("/api/todos/{todo_id}", response_model=TodoOut)
-async def patch_todo(todo_id: int, body: TodoPatch) -> TodoOut:
-    if body.title is None and body.completed is None:
-        raise HTTPException(status_code=422, detail="at least one field must be provided")
-    if body.title is not None and not body.title.strip():
-        raise HTTPException(status_code=422, detail="title must not be blank or whitespace only")
+@app.put("/api/todos/{todo_id}", response_model=TodoOut)
+async def update_todo(todo_id: int, body: TodoUpdate) -> TodoOut:
     with SessionLocal() as db:
         todo = db.get(Todo, todo_id)
         if todo is None:
-            raise HTTPException(status_code=404, detail="todo not found")
-        if body.title is not None:
-            todo.title = body.title
-        if body.completed is not None:
-            todo.completed = body.completed
+            raise NoResultFound
+        todo.text = body.text.strip()
+        todo.completed = body.completed
+        db.add(todo)
         db.commit()
         db.refresh(todo)
         return todo
@@ -124,6 +125,21 @@ async def delete_todo(todo_id: int) -> None:
     with SessionLocal() as db:
         todo = db.get(Todo, todo_id)
         if todo is None:
-            raise HTTPException(status_code=404, detail="todo not found")
+            raise NoResultFound
         db.delete(todo)
         db.commit()
+        return None
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(_, exc: ValueError):
+    from fastapi import HTTPException
+
+    raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.exception_handler(NoResultFound)
+async def not_found_handler(_, exc: NoResultFound):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=404, content={"detail": "todo not found"})
