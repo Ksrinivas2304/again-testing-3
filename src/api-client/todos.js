@@ -10,17 +10,13 @@ async function request(path, options = {}) {
   });
 
   if (!response.ok) {
-    let message = `Request failed with status ${response.status}`;
-    try {
-      const data = await response.json();
-      message = data?.detail || data?.message || message;
-    } catch {
-      // ignore
-    }
-    throw new Error(message);
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
-  if (response.status === 204) return null;
+  if (response.status === 204) {
+    return null;
+  }
+
   return response.json();
 }
 
@@ -35,10 +31,10 @@ export function createTodo(text) {
   });
 }
 
-export function updateTodo(id, todo) {
+export function updateTodo(id, payload) {
   return request(`/api/todos/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ text: todo.text, completed: todo.completed }),
+    body: JSON.stringify(payload),
   });
 }
 

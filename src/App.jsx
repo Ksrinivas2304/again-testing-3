@@ -1,186 +1,125 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCheck, PencilLine, Plus, RefreshCcw, Trash2 } from 'lucide-react';
 import { createTodo, deleteTodo, fetchTodos, updateTodo } from './api-client/todos';
-import './App.css';
 
-function TodoSkeleton() {
-  return (
-    <div className="todo-card todo-skeleton" aria-hidden="true">
-      <div className="skeleton-line skeleton-title" />
-      <div className="skeleton-line skeleton-body" />
-    </div>
-  );
-}
-
-function App() {
+export default function App() {
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [newText, setNewText] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [editingText, setEditingText] = useState('');
-  const [busyIds, setBusyIds] = useState([]);
-
-  const stats = useMemo(() => ({
-    total: todos.length,
-    completed: todos.filter((todo) => todo.completed).length,
-  }), [todos]);
-
-  async function loadTodos() {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await fetchTodos();
-      setTodos(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load todos');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [text, setText] = useState('');
+  const [savingId, setSavingId] = useState(null);
 
   useEffect(() => {
-    loadTodos();
+    let active = true;
+    fetchTodos()
+      .then((data) => {
+        if (!active) return;
+        setTodos(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setError('Unable to load todos. Please try again.');
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  async function handleCreate(e) {
-    e.preventDefault();
-    const text = newText.trim();
-    if (!text) return;
-    setSaving(true);
-    setError('');
-    try {
-      const todo = await createTodo(text);
-      setTodos((current) => [...current, todo]);
-      setNewText('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create todo');
-    } finally {
-      setSaving(false);
-    }
+  const remainingCount = useMemo(() => todos.filter((todo) => !todo.completed).length, [todos]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!text.trim()) return;
+    const created = await createTodo(text.trim());
+    setTodos((current) => [created, ...current]);
+    setText('');
   }
 
   async function handleToggle(todo) {
-    setBusyIds((current) => [...current, todo.id]);
-    setError('');
-    try {
-      const updated = await updateTodo(todo.id, { text: todo.text, completed: !todo.completed });
-      setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update todo');
-    } finally {
-      setBusyIds((current) => current.filter((id) => id !== todo.id));
-    }
+    setSavingId(todo.id);
+    const updated = await updateTodo(todo.id, { text: todo.text, completed: !todo.completed });
+    setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
+    setSavingId(null);
   }
 
-  async function handleDelete(id) {
-    setBusyIds((current) => [...current, id]);
-    setError('');
-    try {
-      await deleteTodo(id);
-      setTodos((current) => current.filter((todo) => todo.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete todo');
-    } finally {
-      setBusyIds((current) => current.filter((itemId) => itemId !== id));
-    }
-  }
-
-  async function handleSaveEdit(todo) {
-    const nextText = editingText.trim();
-    if (!nextText) return;
-    setBusyIds((current) => [...current, todo.id]);
-    try {
-      const updated = await updateTodo(todo.id, { text: nextText, completed: todo.completed });
-      setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
-      setEditingId(null);
-      setEditingText('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update todo');
-    } finally {
-      setBusyIds((current) => current.filter((id) => id !== todo.id));
-    }
+  async function handleDelete(todoId) {
+    setSavingId(todoId);
+    await deleteTodo(todoId);
+    setTodos((current) => current.filter((item) => item.id !== todoId));
+    setSavingId(null);
   }
 
   return (
-    <main className="app-shell">
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Todo dashboard</p>
-          <h1>Track tasks, edit text, and sync with your backend.</h1>
-          <p className="hero-copy">Create, update, complete, and delete todos with live API data from <code>/api/todos</code>.</p>
-        </div>
-        <button className="secondary-button" onClick={loadTodos} type="button">
-          <RefreshCcw size={16} /> Refresh
-        </button>
-      </section>
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-6 px-4 py-10 sm:px-6 lg:px-8">
+        <header className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">Todo stack</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Stay on top of your work</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Create, complete, and remove tasks with a clean contract-driven interface.</p>
+        </header>
 
-      <section className="stats-row" aria-label="Todo summary">
-        <article className="stat-card"><span>Total</span><strong>{stats.total}</strong></article>
-        <article className="stat-card"><span>Completed</span><strong>{stats.completed}</strong></article>
-        <article className="stat-card"><span>Open</span><strong>{stats.total - stats.completed}</strong></article>
-      </section>
-
-      <section className="panel">
-        <form className="todo-form" onSubmit={handleCreate}>
-          <label htmlFor="todo-text">New todo</label>
-          <div className="form-row">
-            <input id="todo-text" value={newText} onChange={(e) => setNewText(e.target.value)} placeholder="Write a task" />
-            <button className="primary-button" disabled={saving || !newText.trim()} type="submit">
-              <Plus size={16} /> {saving ? 'Adding…' : 'Add todo'}
-            </button>
+        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-xl shadow-slate-950/30">
+          <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
+            <label className="sr-only" htmlFor="todo-text">Todo text</label>
+            <input
+              id="todo-text"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              placeholder="Add a new todo"
+              className="flex-1 rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/40"
+            />
+            <button className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 focus:ring-2 focus:ring-cyan-300" type="submit">Add todo</button>
+          </form>
+          <div className="mt-4 flex items-center justify-between text-sm text-slate-400">
+            <span>{remainingCount} active</span>
+            <span>{todos.length} total</span>
           </div>
-        </form>
+        </section>
 
-        {error ? <div className="error-banner" role="alert">{error}</div> : null}
-
-        {loading ? (
-          <div className="todo-list" aria-busy="true">{Array.from({ length: 3 }).map((_, index) => <TodoSkeleton key={index} />)}</div>
-        ) : todos.length === 0 ? (
-          <div className="empty-state">
-            <CheckCheck size={28} />
-            <h2>No todos yet</h2>
-            <p>Create your first todo to get started.</p>
-          </div>
-        ) : (
-          <div className="todo-list">
-            {todos.map((todo) => {
-              const busy = busyIds.includes(todo.id);
-              const editing = editingId === todo.id;
-              return (
-                <article className={`todo-card ${todo.completed ? 'completed' : ''}`} key={todo.id}>
-                  <label className="todo-check">
-                    <input checked={todo.completed} disabled={busy} onChange={() => handleToggle(todo)} type="checkbox" />
-                    <span>{todo.completed ? 'Completed' : 'Active'}</span>
-                  </label>
-
-                  {editing ? (
-                    <div className="edit-row">
-                      <input value={editingText} onChange={(e) => setEditingText(e.target.value)} />
-                      <button className="primary-button" onClick={() => handleSaveEdit(todo)} type="button">Save</button>
-                      <button className="ghost-button" onClick={() => { setEditingId(null); setEditingText(''); }} type="button">Cancel</button>
-                    </div>
-                  ) : (
-                    <p className="todo-text">{todo.text}</p>
-                  )}
-
-                  <div className="todo-actions">
-                    <button className="ghost-button" disabled={busy} onClick={() => { setEditingId(todo.id); setEditingText(todo.text); }} type="button">
-                      <PencilLine size={16} /> Edit
-                    </button>
-                    <button className="danger-button" disabled={busy} onClick={() => handleDelete(todo.id)} type="button">
-                      <Trash2 size={16} /> Delete
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+        <section className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-xl shadow-slate-950/30">
+          {loading ? (
+            <div className="space-y-3" aria-label="Loading todos">
+              <div className="h-16 animate-pulse rounded-2xl bg-white/5" />
+              <div className="h-16 animate-pulse rounded-2xl bg-white/5" />
+              <div className="h-16 animate-pulse rounded-2xl bg-white/5" />
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+              {error}
+            </div>
+          ) : todos.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-sm text-slate-300">No todos yet. Add your first task to get started.</p>
+          ) : (
+            <ul className="space-y-3">
+              {todos.map((todo) => (
+                <li key={todo.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-cyan-400/30">
+                  <input
+                    type="checkbox"
+                    checked={todo.completed}
+                    onChange={() => handleToggle(todo)}
+                    disabled={savingId === todo.id}
+                    aria-label={`Mark ${todo.text} as ${todo.completed ? 'incomplete' : 'complete'}`}
+                    className="h-4 w-4 rounded border-white/30 bg-slate-950 text-cyan-500 focus:ring-cyan-500"
+                  />
+                  <span className={`flex-1 text-sm ${todo.completed ? 'text-slate-500 line-through' : 'text-slate-100'}`}>{todo.text}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(todo.id)}
+                    disabled={savingId === todo.id}
+                    className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:border-rose-400/40 hover:text-rose-200 focus:ring-2 focus:ring-rose-400/40"
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
-
-export default App;
