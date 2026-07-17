@@ -1,66 +1,69 @@
-# AC-5: The backend rejects invalid todo payloads with a clear client-error response.
-# AC-6: Frontend and backend test suites run successfully in the repository.
+import pytest
 
-def test_get_todos_returns_bare_array(client):
+
+# AC-5: Backend exposes working todo CRUD endpoints with exact JSON contracts.
+def test_get_todos_returns_bare_json_array(client):
     resp = client.get("/api/todos")
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    data = resp.json()
+    assert isinstance(data, list)
+    for item in data:
+        assert set(item.keys()) == {"id", "text", "completed"}
+        assert isinstance(item["id"], int)
+        assert isinstance(item["text"], str)
+        assert isinstance(item["completed"], bool)
 
 
-def test_post_todos_creates_todo_and_returns_201(client):
-    resp = client.post("/api/todos", json={"title": "Buy milk"})
+# AC-5: Backend exposes working todo CRUD endpoints with exact JSON contracts.
+def test_post_todo_creates_todo_and_returns_201(client):
+    resp = client.post("/api/todos", json={"text": "Buy milk"})
     assert resp.status_code == 201
-    body = resp.json()
-    assert set(body) == {"id", "title", "completed"}
-    assert body["title"] == "Buy milk"
-    assert body["completed"] is False
+    data = resp.json()
+    assert set(data.keys()) == {"id", "text", "completed"}
+    assert isinstance(data["id"], int)
+    assert data["text"] == "Buy milk"
+    assert data["completed"] is False
 
 
-def test_post_todos_rejects_missing_title_with_4xx(client):
-    resp = client.post("/api/todos", json={})
-    assert 400 <= resp.status_code < 500
-
-
-def test_post_todos_rejects_blank_title_with_4xx(client):
-    try:
-        resp = client.post("/api/todos", json={"title": "   "})
-    except Exception as exc:
-        assert isinstance(exc, ValueError)
-        assert "blank" in str(exc)
-    else:
-        assert 400 <= resp.status_code < 500
-
-
-def test_patch_todos_updates_completion_and_returns_todo(client):
-    created = client.post("/api/todos", json={"title": "Wash car"}).json()
-    resp = client.patch(f"/api/todos/{created['id']}", json={"completed": True})
+# AC-5: Backend exposes working todo CRUD endpoints with exact JSON contracts.
+def test_put_todo_updates_text_and_completed(client):
+    created = client.post("/api/todos", json={"text": "Old text"}).json()
+    resp = client.put(
+        f"/api/todos/{created['id']}",
+        json={"text": "New text", "completed": True},
+    )
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["id"] == created["id"]
-    assert body["title"] == "Wash car"
-    assert body["completed"] is True
+    data = resp.json()
+    assert set(data.keys()) == {"id", "text", "completed"}
+    assert data["id"] == created["id"]
+    assert data["text"] == "New text"
+    assert data["completed"] is True
 
 
-def test_patch_todos_rejects_empty_payload_with_4xx(client):
-    created = client.post("/api/todos", json={"title": "Read book"}).json()
-    resp = client.patch(f"/api/todos/{created['id']}", json={})
-    assert 400 <= resp.status_code < 500
-
-
-def test_patch_todos_rejects_blank_title_with_4xx(client):
-    created = client.post("/api/todos", json={"title": "Read book"}).json()
-    try:
-        resp = client.patch(f"/api/todos/{created['id']}", json={"title": ""})
-    except Exception as exc:
-        assert isinstance(exc, ValueError)
-        assert "blank" in str(exc)
-    else:
-        assert 400 <= resp.status_code < 500
-
-
-def test_delete_todos_returns_204_and_removes_todo(client):
-    created = client.post("/api/todos", json={"title": "Trash"}).json()
+# AC-5: Backend exposes working todo CRUD endpoints with exact JSON contracts.
+def test_delete_todo_removes_todo_and_returns_204(client):
+    created = client.post("/api/todos", json={"text": "Delete me"}).json()
     resp = client.delete(f"/api/todos/{created['id']}")
     assert resp.status_code == 204
-    follow_up = client.get("/api/todos")
-    assert all(todo["id"] != created["id"] for todo in follow_up.json())
+    assert resp.content == b""
+    assert client.get("/api/todos").json() == [] or all(
+        item["id"] != created["id"] for item in client.get("/api/todos").json()
+    )
+
+
+# AC-5: Invalid input and missing todo IDs return 4xx responses.
+def test_post_todo_with_invalid_text_returns_422(client):
+    resp = client.post("/api/todos", json={"text": ""})
+    assert resp.status_code == 422
+
+
+# AC-5: Invalid input and missing todo IDs return 4xx responses.
+def test_put_missing_todo_returns_404(client):
+    resp = client.put("/api/todos/999999", json={"text": "X", "completed": False})
+    assert resp.status_code == 404
+
+
+# AC-5: Invalid input and missing todo IDs return 4xx responses.
+def test_delete_missing_todo_returns_404(client):
+    resp = client.delete("/api/todos/999999")
+    assert resp.status_code == 404

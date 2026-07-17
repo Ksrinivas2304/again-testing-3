@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for API contract tests."""
+"""Shared pytest fixtures — QA owns this file entirely."""
 import os
 import sys
 
