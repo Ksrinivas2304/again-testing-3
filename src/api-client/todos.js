@@ -10,12 +10,14 @@ async function request(path, options = {}) {
   });
 
   const contentType = response.headers.get('content-type') || '';
-  const hasJson = contentType.includes('application/json');
-  const data = hasJson ? await response.json() : null;
+  const data = contentType.includes('application/json') ? await response.json() : null;
 
   if (!response.ok) {
-    const message = data && typeof data === 'object' && 'detail' in data ? String(data.detail) : `Request failed with status ${response.status}`;
-    throw new Error(message);
+    throw new Error(
+      data && typeof data === 'object' && 'detail' in data
+        ? String(data.detail)
+        : `Request failed with status ${response.status}`,
+    );
   }
 
   return data;

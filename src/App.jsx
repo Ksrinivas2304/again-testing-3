@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Circle, Loader2, Plus, PencilLine, Trash2, RefreshCcw } from 'lucide-react';
+import { Check, Circle, Loader2, Plus, PencilLine, RefreshCcw, Trash2 } from 'lucide-react';
 import { createTodo, deleteTodo, fetchTodos, updateTodo } from './api-client/todos';
 
 function TodoSkeleton() {
@@ -12,13 +12,12 @@ function TodoSkeleton() {
   );
 }
 
-function App() {
+export default function App() {
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
-  const [activeId, setActiveId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -75,29 +74,26 @@ function App() {
   }
 
   async function handleSaveEdit(todo) {
-    const nextText = draftText.trim();
-    if (!nextText) return;
+    const value = draftText.trim();
+    if (!value) return;
 
-    setActiveId(todo.id);
     setError('');
     try {
-      const updated = await updateTodo(todo.id, { text: nextText });
+      const updated = await updateTodo(todo.id, { text: value });
       setTodos((current) => current.map((item) => (item.id === todo.id ? updated : item)));
       setEditingId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update todo');
-    } finally {
-      setActiveId(null);
     }
   }
 
-  async function handleDelete(todoId) {
-    setDeletingId(todoId);
+  async function handleDelete(id) {
+    setDeletingId(id);
     setError('');
     try {
-      await deleteTodo(todoId);
-      setTodos((current) => current.filter((item) => item.id !== todoId));
-      if (editingId === todoId) setEditingId(null);
+      await deleteTodo(id);
+      setTodos((current) => current.filter((item) => item.id !== id));
+      if (editingId === id) setEditingId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete todo');
     } finally {
@@ -113,14 +109,8 @@ function App() {
           <h1>Ship your to-do list with a clean CRUD workflow.</h1>
           <p className="hero-text">Track tasks, edit items inline, and keep everything synced with the FastAPI backend.</p>
           <div className="stats-row">
-            <div>
-              <span className="stat-value">{todos.length}</span>
-              <span className="stat-label">Total</span>
-            </div>
-            <div>
-              <span className="stat-value">{completedCount}</span>
-              <span className="stat-label">Completed</span>
-            </div>
+            <div><span className="stat-value">{todos.length}</span><span className="stat-label">Total</span></div>
+            <div><span className="stat-value">{completedCount}</span><span className="stat-label">Completed</span></div>
           </div>
         </div>
 
@@ -141,9 +131,7 @@ function App() {
             <h2>Todos</h2>
             <p>Use the controls below to update or remove items.</p>
           </div>
-          <button type="button" className="ghost-button" onClick={loadTodos}>
-            <RefreshCcw className="icon" /> Refresh
-          </button>
+          <button type="button" className="ghost-button" onClick={loadTodos}><RefreshCcw className="icon" /> Refresh</button>
         </div>
 
         {error ? <div className="error-banner" role="alert">{error}</div> : null}
@@ -179,13 +167,9 @@ function App() {
 
                   <div className="todo-actions">
                     {isEditing ? (
-                      <button type="button" className="primary-button" onClick={() => handleSaveEdit(todo)} disabled={activeId === todo.id || !draftText.trim()}>
-                        Save
-                      </button>
+                      <button type="button" className="primary-button" onClick={() => handleSaveEdit(todo)} disabled={!draftText.trim()}>Save</button>
                     ) : (
-                      <button type="button" className="secondary-button" onClick={() => { setEditingId(todo.id); setDraftText(todo.text); }}>
-                        <PencilLine className="icon" /> Edit
-                      </button>
+                      <button type="button" className="secondary-button" onClick={() => { setEditingId(todo.id); setDraftText(todo.text); }}><PencilLine className="icon" /> Edit</button>
                     )}
                     <button type="button" className="danger-button" onClick={() => handleDelete(todo.id)} disabled={deletingId === todo.id}>
                       {deletingId === todo.id ? <Loader2 className="icon spin" /> : <Trash2 className="icon" />} Delete
@@ -200,5 +184,3 @@ function App() {
     </main>
   );
 }
-
-export default App;
