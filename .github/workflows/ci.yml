@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  backend-quality:
+    name: Backend quality checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          if [ -f requirements.txt ]; then
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+          fi
+
+      - name: Run backend tests
+        run: |
+          if [ -f requirements.txt ]; then
+            pytest
+          fi
+
+      - name: Run backend lint
+        run: |
+          if [ -f requirements.txt ]; then
+            if python -m flake8 --version >/dev/null 2>&1; then
+              python -m flake8 .
+            elif python -m ruff --version >/dev/null 2>&1; then
+              python -m ruff check .
+            else
+              echo "No backend linter configured in requirements.txt"
+              exit 1
+            fi
+          fi
+
+  frontend-quality:
+    name: Frontend quality checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          elif [ -f package.json ]; then
+            npm install
+          fi
+
+      - name: Run frontend tests
+        run: |
+          if [ -f package.json ]; then
+            npm run test
+          fi
+
+      - name: Run frontend lint
+        run: |
+          if [ -f package.json ]; then
+            npm run lint
+          fi
